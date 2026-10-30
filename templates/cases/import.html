@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}导入用例{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h3>导入 md 用例文件</h3>
+    <a href="{{ url_for('case_list') }}" class="btn btn-outline-secondary">返回</a>
+</div>
+
+<form method="post" enctype="multipart/form-data" class="form-card">
+    <div class="mb-3">
+        <label class="form-label">选择 md 文件 *</label>
+        <input type="file" name="file" accept=".md,.markdown" class="form-control" required>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">文档名（可选）</label>
+        <input name="doc_name" class="form-control" placeholder="例如：资产达标·点金有礼V1.1.0需求说明书.docx">
+    </div>
+    <div class="mb-3">
+        <label class="form-label">文档版本（可选）</label>
+        <input name="doc_version" class="form-control" placeholder="例如：V1.1.0">
+    </div>
+    <button class="btn btn-primary" type="submit">开始导入</button>
+</form>
+{% endblock %}

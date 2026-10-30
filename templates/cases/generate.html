@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}用例设计{% endblock %}
+
+{% block content %}
+<style>
+    .design-container { display: flex; gap: 20px; height: calc(100vh - 80px); }
+    .design-sidebar { width: 400px; background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); padding: 20px; overflow-y: auto; }
+    .design-main { flex: 1; background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: flex; flex-direction: column; }
+
+    .mode-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; margin-bottom: 10px; cursor: pointer; transition: 0.2s; }
+    .mode-card.active { border-color: #2563eb; background: #eff6ff; }
+    .mode-card input[type="radio"] { display: none; }
+
+    .section-title { font-size: 14px; font-weight: 600; margin-top: 20px; margin-bottom: 10px; color: #374151; display: flex; align-items: center; gap: 6px; }
+
+    .tag-group { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tag-btn { padding: 6px 16px; border-radius: 20px; border: 1px solid #d1d5db; background: #fff; font-size: 13px; color: #4b5563; cursor: pointer; transition: 0.2s; }
+    .tag-btn.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+
+    .stream-header { padding: 15px 20px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 20px; }
+    .stream-step { display: flex; align-items: center; gap: 6px; color: #9ca3af; font-size: 13px; }
+    .stream-step.active { color: #2563eb; font-weight: bold; }
+
+    .stream-content { flex: 1; background: #111827; color: #e5e7eb; padding: 20px; overflow-y: auto; font-family: monospace; font-size: 13px; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }
+</style>
+
+<div class="design-container">
+    <!-- 左侧：配置栏 -->
+    <div class="design-sidebar">
+        <h5 class="fw-bold mb-3">用例设计</h5>
+
+        <div class="section-title">生成方式</div>
+        <label class="mode-card active" onclick="switchMode(this, 'point')">
+            <input type="radio" name="gen_mode" value="point" checked>
+            <div class="fw-bold" style="color: #2563eb;">先提取测试点供我评审</div>
+            <div class="text-muted mt-1" style="font-size: 12px;">推荐：测试点带原文引用，可编辑，质量更高。</div>
+        </label>
+        <label class="mode-card" onclick="switchMode(this, 'direct')">
+            <input type="radio" name="gen_mode" value="direct">
+            <div class="fw-bold">直接生成用例</div>
+            <div class="text-muted mt-1" style="font-size: 12px;">一键到底，测试点自动通过（仍会保留溯源链）。</div>
+        </label>
+
+        <div class="section-title">测试目标</div>
+        <textarea class="form-control mb-2" id="targetInput" rows="2" placeholder="基于需求文档提前测试点"></textarea>
+
+        <div class="section-title">生成来源</div>
+        <div class="accordion mb-3" id="sourceAccordion">
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button collapsed py-2" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSource">
+                        知识库与 Wiki (已选 1 个)
+                    </button>
+                </h2>
+                <div id="collapseSource" class="accordion-collapse collapse show">
+                    <div class="accordion-body p-2">
+                        <span class="badge bg-primary bg-opacity-10 text-primary border border-primary rounded-pill px-3 py-1">test_case</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="section-title">用例类型</div>
+        <div class="tag-group mb-3" id="typeGroup">
+            <div class="tag-btn active" data-val="功能">功能</div>
+            <div class="tag-btn" data-val="边界">边界</div>
+            <div class="tag-btn" data-val="异常">异常</div>
+            <div class="tag-btn" data-val="场景">场景</div>
+            <div class="tag-btn" data-val="界面">界面</div>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-6">
+                <div class="section-title">数量</div>
+                <select class="form-select" id="countInput">
+                    <option value="auto">自动</option>
+                    <option value="10">指定 10</option>
+                    <option value="20">指定 20</option>
+                </select>
+            </div>
+            <div class="col-6">
+                <div class="section-title">优先级倾向</div>
+                <select class="form-select" id="priorityInput">
+                    <option value="auto">自动分配</option>
+                    <option value="P0">P0 优先</option>
+                    <option value="P1">P1 优先</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="mt-4">
+            <input type="file" id="fileInput" class="form-control mb-2" accept=".docx">
+            <input type="text" id="docName" class="form-control mb-2" placeholder="文档名（如：星耀智投V1.1.0）">
+            <input type="text" id="docVersion" class="form-control mb-3" placeholder="文档版本（如：V1.1.0）" value="V1.1.0">
+            <button class="btn btn-primary w-100 py-2" id="btnStartGenerate" onclick="startGenerate()">▶ 开始提取测试点</button>
+        </div>
+    </div>
+
+    <!-- 右侧：流式输出 -->
+    <div class="design-main">
+        <div class="stream-header">
+            <div class="stream-step active" id="step-research">调研</div>
+            <div class="stream-step" id="step-model">场景建模</div>
+            <div class="stream-step" id="step-extract">提取测试点</div>
+            <div class="stream-step" id="step-gen">生成用例</div>
+        </div>
+        <div class="stream-content" id="streamLog">
+            <div class="text-muted text-center mt-5" style="color: #9ca3af;">
+                <h1>📚</h1>
+                <p>填写左侧的测试目标与素材，点击「开始提取测试点」。<br>场景与测试点将实时出现在这里，完成后前往评审。</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function switchMode(el, mode) {
+        document.querySelectorAll('.mode-card').forEach(c => c.classList.remove('active'));
+        el.classList.add('active');
+        el.querySelector('input').checked = true;
+        document.getElementById('btnStartGenerate').innerText = mode === 'point' ? '▶ 开始提取测试点' : '▶ 直接生成用例';
+    }
+
+    document.querySelectorAll('#typeGroup .tag-btn').forEach(btn => {
+        btn.onclick = () => btn.classList.toggle('active');
+    });
+
+    let sse = null;
+
+    async function startGenerate() {
+        const file = document.getElementById('fileInput').files[0];
+        if (!file) { alert("请上传需求 docx 文件"); return; }
+
+        const mode = document.querySelector('input[name="gen_mode"]:checked').value;
+        const docName = document.getElementById('docName').value || file.name;
+        const docVersion = document.getElementById('docVersion').value || 'V1.0.0';
+
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('doc_name', docName);
+        fd.append('doc_version', docVersion);
+        fd.append('gen_mode', mode);
+
+        const logEl = document.getElementById('streamLog');
+        logEl.innerHTML = "[系统] 正在上传文档并解析...<br>";
+        document.getElementById('btnStartGenerate').disabled = true;
+
+        // 调用后端的老生成接口（目前复用切块和提取测试点的逻辑）
+        const res = await fetch("{{ url_for('case_generate') }}", { method: 'POST', body: fd });
+        const data = await res.json();
+
+        if (!data.ok) {
+            alert(data.msg);
+            document.getElementById('btnStartGenerate').disabled = false;
+            return;
+        }
+
+        // 连接 SSE
+        if (sse) sse.close();
+        sse = new EventSource('/cases/generate/stream/' + data.task_id);
+        sse.onmessage = (ev) => {
+            const obj = JSON.parse(ev.data);
+
+            if (obj.kind === 'end') {
+                sse.close();
+                document.getElementById('step-extract').innerHTML = '提取测试点';
+                logEl.innerHTML += "<br><br><span style='color:#4ade80;'>[系统] 提取完成！即将跳转到评审台...</span>";
+                setTimeout(() => { window.location.href = '/test-points/list'; }, 1500);
+                return;
+            }
+
+            if (obj.kind === 'stage') {
+                if(obj.stage === 'PREPROCESSING') document.getElementById('step-model').classList.add('active');
+                if(obj.stage === 'GENERATING') document.getElementById('step-extract').classList.add('active');
+                return;
+            }
+
+            logEl.innerHTML += obj.msg;
+            logEl.scrollTop = logEl.scrollHeight;
+        };
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,536 @@
+{% extends "base.html" %}
+{% block title %}测试点评审{% endblock %}
+
+{% block content %}
+<style>
+    /* ================= 基础布局 ================= */
+    .tp-layout { background: #f8f9fa; padding: 20px; height: calc(100vh - 60px); display: flex; flex-direction: column; box-sizing: border-box; }
+    .tp-header { flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 20px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .tp-main { display: flex; gap: 20px; flex: 1; min-height: 0; }
+
+    /* 左侧导航 */
+    .tp-sidebar { width: 260px; flex-shrink: 0; background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); padding: 10px; overflow-y: auto; }
+    .tp-sidebar-item { display: flex; justify-content: space-between; padding: 10px 15px; border-radius: 6px; cursor: pointer; margin-bottom: 5px; font-size: 14px; }
+    .tp-sidebar-item:hover { background: #f3f4f6; }
+    .tp-sidebar-item.active { background: #e0f2fe; color: #0284c7; font-weight: 600; }
+
+    /* 右侧内容区 */
+    .tp-content { flex: 1; min-width: 0; overflow-y: auto; padding-right: 5px; contain: layout paint; }
+
+    /* 吸顶工具栏 */
+    .tp-toolbar-wrapper { position: sticky; top: 0; z-index: 100; background: #f8f9fa; padding-bottom: 15px; }
+    .tp-toolbar { display: flex; gap: 10px; align-items: center; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); flex-wrap: wrap; width: 100%; box-sizing: border-box; }
+    .tp-toolbar input, .tp-toolbar select { flex-shrink: 0; box-sizing: border-box; position: relative; z-index: 1050; will-change: transform; transform: translateZ(0); }
+
+    /* ================= 卡片与列表 ================= */
+    .scene-group-title { font-size: 16px; font-weight: 600; color: #374151; margin: 25px 0 12px 0; display: flex; align-items: center; gap: 8px; }
+    .scene-group-title .badge { font-size: 12px; background: #e5e7eb; color: #4b5563; }
+
+    .tp-item-card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 12px; padding: 16px; transition: 0.2s; cursor: pointer; }
+    .tp-item-card:hover { border-color: #3b82f6; box-shadow: 0 2px 8px rgba(59,130,246,0.1); }
+
+    /* 【优化】恢复白底，只保留左侧红线 */
+    .tp-item-card.need-attention { border-left: 4px solid #ef4444; background: #fff; }
+
+    .tp-card-header { display: flex; gap: 12px; align-items: flex-start; }
+    .tp-title { font-size: 15px; font-weight: 500; color: #1f2937; line-height: 1.5; flex-grow: 1; user-select: none; }
+    .tp-arrow { transition: transform 0.3s; color: #9ca3af; font-size: 12px; margin-top: 5px; }
+    .tp-item-card.expanded .tp-arrow { transform: rotate(180deg); }
+
+    .tp-detail { margin-top: 15px; padding-top: 15px; border-top: 1px dashed #e5e7eb; display: none; cursor: default; }
+    .tp-item-card.expanded .tp-detail { display: block; }
+
+    /* 标签外露 */
+    .tp-tags { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+
+    .evidence-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 12px; margin-top: 10px; font-size: 13px; color: #166534; white-space: pre-wrap; }
+    .expert-advice-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 12px; margin-top: 10px; font-size: 13px; color: #1e3a8a; }
+
+    /* 覆盖矩阵 */
+    .matrix-card { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-top: 20px; overflow: hidden; }
+    .matrix-table { width: 100%; border-collapse: collapse; margin-bottom: 0; }
+    .matrix-table th, .matrix-table td { padding: 12px 15px; border-bottom: 1px solid #f3f4f6; text-align: center; font-size: 13px; }
+    .matrix-table th:first-child, .matrix-table td:first-child { text-align: left; font-weight: 600; border-right: 1px solid #f3f4f6; background: #fafafa; }
+    .matrix-cell.has-data { background: #dcfce7; color: #16a34a; font-weight: bold; border-radius: 4px; display: inline-block; padding: 2px 10px; }
+    .matrix-cell.missing { background: #fef2f2; color: #ef4444; font-weight: bold; border-radius: 4px; display: inline-block; padding: 2px 10px; }
+
+    /* ================= 浮动组件 ================= */
+    /* 底部批量重写栏 */
+    #floatingActionBar { display: none; position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #fff; padding: 12px 24px; border-radius: 50px; z-index: 999; border: 1px solid #e5e7eb; align-items: center; gap: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+
+    /* 右下角任务中心 */
+    #taskCenter { display: none; position: fixed; bottom: 30px; right: 30px; background: #fff; padding: 12px 20px; border-radius: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.15); z-index: 2000; cursor: pointer; border: 1px solid #bfdbfe; align-items: center; gap: 10px; transition: 0.3s; }
+    #taskCenter:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.2); }
+
+    /* 集中确认抽屉 */
+    .drawer-overlay { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.4); z-index: 1040; }
+    .drawer-panel { position: fixed; top: 0; right: -600px; width: 600px; height: 100vh; background: #fff; z-index: 1050; box-shadow: -2px 0 10px rgba(0,0,0,0.1); transition: right 0.3s ease; display: flex; flex-direction: column; }
+    .drawer-panel.open { right: 0; }
+</style>
+
+<div class="tp-layout">
+    <!-- 头部 -->
+    <div class="tp-header">
+        <div>
+            <h4 class="mb-1 fw-bold">测试点评审</h4>
+            <span class="text-muted" style="font-size: 13px;">共 {{ points|length }} 点 · 待审 {{ pending_count }} · 已审 {{ approved_count }}</span>
+        </div>
+        <div class="d-flex gap-2">
+            <!-- 集中确认按钮 -->
+            <button class="btn btn-warning" onclick="openDrawer()">⚡ 集中确认待定项</button>
+            <button class="btn btn-outline-primary" onclick="openExpertModal()">👨‍💻 专家评审</button>
+            <a href="{{ url_for('case_generate') }}" class="btn btn-outline-secondary">新建分析</a>
+            <a href="{{ url_for('case_list') }}" class="btn btn-outline-secondary">用例库</a>
+        </div>
+    </div>
+
+    <div class="tp-main">
+        <!-- 左侧树 -->
+        <div class="tp-sidebar">
+            <div class="tp-sidebar-item active" onclick="filterScene('', this)">
+                <span>全部测试点</span><span class="badge bg-secondary rounded-pill">{{ points|length }}</span>
+            </div>
+            {% for scene, count in scene_counts.items() %}
+            <div class="tp-sidebar-item" onclick="filterScene('{{ scene }}', this)">
+                <span>{{ scene }}</span><span class="badge bg-light text-dark rounded-pill">{{ count }}</span>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- 右侧内容 -->
+        <div class="tp-content">
+            <div class="tp-toolbar-wrapper">
+                <div class="tp-toolbar">
+                    <input type="text" id="searchInput" class="form-control" placeholder="🔍 搜索测试点..." style="width: 160px;" onkeyup="applyFilters()">
+                    <select id="expertFilter" class="form-select" style="width: 140px;" onchange="applyFilters()">
+                        <option value="">全部专家意见</option>
+                        <option value="建议通过">专家:建议通过</option>
+                        <option value="建议拒绝">专家:建议拒绝</option>
+                        <option value="不确定">专家:不确定</option>
+                    </select>
+                    <div class="ms-auto d-flex gap-2">
+                        <button class="btn btn-outline-danger" onclick="batchDelete()">🗑️ 清空全部</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tpListContainer">
+                {% for scene, scene_points in grouped_points.items() %}
+                <div class="scene-group" data-scene="{{ scene }}">
+                    <div class="scene-group-title">{{ scene }} <span class="badge rounded-pill">{{ scene_points|length }}</span></div>
+
+                    {% for p in scene_points %}
+                    <div class="tp-item-card shadow-sm tp-card-item {% if p.is_attention %}need-attention{% endif %}"
+                         data-scene="{{ p.scene }}" data-expert="{{ p.expert_opinion }}" data-intent="{{ p.intent }}" data-content="{{ p.content }}" data-evidence="{{ p.evidence_ids }}" data-advice="{{ p.expert_advice }}" onclick="toggleCard(this)">
+                        <div class="tp-card-header" onclick="event.stopPropagation()">
+                            <div class="form-check mt-1">
+                                <input class="form-check-input tp-check" type="checkbox" value="{{ p.id }}" onchange="updateCount()" onclick="event.stopPropagation()">
+                            </div>
+                            <div class="tp-title tp-title-text" onclick="toggleCard(this.closest('.tp-item-card'))">{{ p.content }}</div>
+                            <div class="tp-arrow" onclick="toggleCard(this.closest('.tp-item-card'))">▼</div>
+                        </div>
+
+                        <!-- 折叠时可见的标签 -->
+                        <div class="tp-tags" style="padding: 0 16px 12px 52px;" onclick="toggleCard(this.closest('.tp-item-card'))">
+                            <span class="badge bg-warning text-dark">{{ p.priority }}</span>
+                            <span class="badge bg-light text-dark border">{{ p.category }}</span>
+                            {% if p.method %}<span class="badge bg-primary bg-opacity-10 text-primary border border-primary">{{ p.method }}</span>{% endif %}
+
+                            <!-- 标签逻辑优化：如果专家已经建议通过，就不再显示刺眼的红标了 -->
+                            {% if p.expert_opinion and p.expert_opinion == '建议通过' %}
+                                <span class="badge bg-info text-dark">💡 专家:建议通过</span>
+                            {% elif p.is_attention %}
+                                {% if p.evidence_ids %}
+                                    <span class="badge bg-danger bg-opacity-10 text-danger border border-danger">⚠️ 需关注</span>
+                                {% else %}
+                                    <span class="badge bg-danger bg-opacity-10 text-danger border border-danger">⚠️ 无原文依据</span>
+                                {% endif %}
+                            {% endif %}
+
+                            {% if p.expert_opinion and p.expert_opinion != '建议通过' %}<span class="badge bg-warning text-dark">💡 专家:{{ p.expert_opinion }}</span>{% endif %}
+                            {% if p.status == 'approved' %}<span class="badge bg-primary">已通过</span>{% else %}<span class="badge bg-secondary">待评审</span>{% endif %}
+                        </div>
+
+                        <!-- 展开详情 -->
+                        <div class="tp-detail">
+                            <div class="text-muted mt-2 mb-2"><strong>测试意图：</strong>{{ p.intent or '暂无意图描述' }}</div>
+                            <div class="evidence-box">{{ p.quotes }}</div>
+                            {% if p.expert_opinion %}
+                            <div class="expert-advice-box">
+                                <strong>🤖 {{ p.expert_name }} 评审意见：{{ p.expert_opinion }}</strong><br>
+                                <span class="text-secondary">{{ p.expert_advice }}</span>
+                            </div>
+                            {% endif %}
+                            <div class="d-flex justify-content-end gap-2 mt-3">
+                                <button class="btn btn-sm btn-outline-primary" data-id="{{ p.id }}" data-content="{{ p.content }}" data-intent="{{ p.intent }}" data-scene="{{ p.scene }}" data-category="{{ p.category }}" data-priority="{{ p.priority }}" data-method="{{ p.method }}" data-evidence="{{ p.evidence_ids }}" onclick="openEditModal(this); event.stopPropagation();">✏️ 编辑</button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deletePoint({{ p.id }}); event.stopPropagation();">🗑️ 删除</button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="updateStatus({{ p.id }}, 'rejected'); event.stopPropagation();">❌ 拒绝</button>
+                                <button class="btn btn-sm btn-success" onclick="updateStatus({{ p.id }}, 'approved'); event.stopPropagation();">✅ 通过</button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- 覆盖矩阵 -->
+            <div class="matrix-card mt-5">
+                <table class="matrix-table">
+                    <thead><tr><th>覆盖矩阵 (场景 × 类别)</th><th>功能</th><th>界面</th><th>接口</th><th>异常</th></tr></thead>
+                    <tbody>
+                        {% for scene in scene_counts.keys() %}
+                        <tr>
+                            <td>{{ scene }}</td>
+                            {% for cat in ['功能', '界面', '接口', '异常'] %}
+                                {% set count = matrix_data.get(scene, {}).get(cat, 0) %}
+                                <td>{% if count > 0 %}<span class="matrix-cell has-data">{{ count }}</span>{% else %}<span class="matrix-cell missing">!</span>{% endif %}</td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 底部批量重写栏 -->
+<div id="floatingActionBar">
+    <span class="fw-bold text-primary">已勾选 <span id="floatSelCount">0</span> 项</span>
+    <div class="input-group input-group-sm" style="width:300px;">
+        <input type="text" id="batchIdeaInput" class="form-control" placeholder="输入修改意见，让AI批量重写...">
+        <button class="btn btn-outline-success" type="button" onclick="batchRegenerate()">✨ 批量重写</button>
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="genCases()">🚀 生成用例</button>
+</div>
+
+<!-- 待确认问题看板（抽屉） -->
+<div class="drawer-overlay" id="drawerOverlay" onclick="closeDrawer()"></div>
+<div class="drawer-panel" id="confirmDrawer">
+    <div class="p-3 border-bottom d-flex justify-content-between align-items-center bg-light">
+        <h5 class="mb-0 fw-bold">📋 待确认问题看板</h5>
+        <button class="btn-close" onclick="closeDrawer()"></button>
+    </div>
+    <div class="p-3" style="flex:1; overflow-y:auto; background:#f8f9fa;">
+        <div class="alert alert-warning py-2 px-3 mb-3" style="font-size:13px;">
+            以下是 AI 提取及专家评审中发现的**核心疑点/缺失项**。你可以在此统一给出业务指令，AI 将根据指令自动修正对应测试点。
+        </div>
+        <div id="issueBoardList"></div>
+    </div>
+    <div class="p-3 border-top bg-white">
+        <textarea id="batchConfirmIdea" class="form-control mb-2" rows="4" placeholder="请按问题序号回复，例如：&#10;问题1：按 198 元/月处理&#10;问题2：该用例作废，直接删除&#10;问题3：不需要测边界，删除异常"></textarea>
+        <button class="btn btn-warning w-100 fw-bold py-2" onclick="submitBatchConfirm()">提交批示并全局修正</button>
+    </div>
+</div>
+
+<!-- 专家评审弹窗 -->
+<div class="modal fade" id="expertModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">专家评审</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+          <p class="text-muted mb-3">专家将对照原文逐条评审，最终决定权在你。</p>
+          <div class="mb-3">
+              <select id="reviewExpertId" class="form-select">
+                  {% for e in experts %}<option value="{{ e.id }}">🤖 {{ e.name }}</option>{% else %}<option value="">暂无专家</option>{% endfor %}
+              </select>
+          </div>
+          <div class="d-flex gap-2 mt-2">
+              <button type="button" class="btn btn-outline-primary btn-sm active" id="btnScopeSelected" onclick="switchReviewScope('selected')">已选(<span id="modalSelCount">0</span>)</button>
+              <button type="button" class="btn btn-outline-secondary btn-sm" id="btnScopeAll" onclick="switchReviewScope('all')">全部待评审({{ pending_count }})</button>
+          </div>
+          <div id="reviewProgress" class="alert alert-info py-2 mt-3" style="display:none; font-size:13px;">
+              <span class="spinner-border spinner-border-sm me-2"></span> 正在后台启动评审...
+          </div>
+      </div>
+      <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">关闭(后台继续)</button>
+          <button type="button" class="btn btn-primary" onclick="startExpertReview()" id="btnStartReview">开始评审</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 编辑测试点弹窗 -->
+<div class="modal fade" id="editModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">编辑测试点</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+          <input type="hidden" id="editId">
+          <div class="mb-3"><label class="form-label">标题</label><input type="text" class="form-control" id="editContent"></div>
+          <div class="mb-3"><label class="form-label">意图</label><textarea class="form-control" id="editIntent" rows="2"></textarea></div>
+          <div class="row">
+              <div class="col-md-6 mb-3"><label class="form-label">场景</label><input type="text" class="form-control" id="editScene"></div>
+              <div class="col-md-6 mb-3"><label class="form-label">类型</label><input type="text" class="form-control" id="editCategory"></div>
+          </div>
+          <div class="row">
+              <div class="col-md-6 mb-3"><label class="form-label">优先级</label><select class="form-select" id="editPriority"><option value="P0">P0</option><option value="P1">P1</option><option value="P2">P2</option></select></div>
+              <div class="col-md-6 mb-3"><label class="form-label">方法</label><input type="text" class="form-control" id="editMethod"></div>
+          </div>
+          <div class="mb-3"><label class="form-label">证据块 IDs</label><input type="text" class="form-control" id="editEvidence"></div>
+      </div>
+      <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+          <button type="button" class="btn btn-primary" onclick="saveEditPoint()">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 右下角悬浮任务中心 -->
+<div id="taskCenter" onclick="showTaskToast()">
+    <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+    <span class="fw-bold text-dark" style="font-size:14px;">1个任务进行中</span>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentScene = '';
+    let reviewScope = 'selected';
+    let globalTaskSse = null;
+
+    function toggleCard(card) { card.classList.toggle('expanded'); }
+
+    function updateCount() {
+        const count = document.querySelectorAll('.tp-check:checked').length;
+        const floatBar = document.getElementById('floatingActionBar');
+        if (floatBar) {
+            floatBar.style.display = count > 0 ? 'flex' : 'none';
+        }
+        document.getElementById('modalSelCount').innerText = count;
+    }
+
+    // ================= 抽屉逻辑（多维度抓取） =================
+    function openDrawer() {
+        const items = document.querySelectorAll('.tp-card-item');
+        let html = '';
+        let issueCount = 0;
+
+        items.forEach(card => {
+            const isAttention = card.classList.contains('need-attention');
+            const expertOp = card.getAttribute('data-expert');
+            const expertAdvice = card.getAttribute('data-advice') || '';
+            const evidence = card.getAttribute('data-evidence') || '';
+            const title = card.querySelector('.tp-title-text').innerText;
+
+            let issueType = '';
+            let issueDesc = '';
+
+            // 场景 A：专家明确给了非通过的结论
+            if (expertOp && expertOp !== '建议通过') {
+                issueType = '【专家存疑】';
+                issueDesc = expertAdvice || `专家给出了 "${expertOp}" 的意见，但未提供具体理由。`;
+            }
+            // 场景 B：缺少原文引用（AI 脑补出来的）
+            else if (!evidence) {
+                issueType = '【缺少依据】';
+                issueDesc = `该测试点未引用任何需求原文。测试点：${title}`;
+            }
+            // 场景 C：有原文，但 AI 标了需关注（通常是原文逻辑模糊）
+            else if (isAttention) {
+                issueType = '【逻辑缺失】';
+                issueDesc = expertAdvice || `引用的原文（Block ${evidence}）可能未明确说明该测试点的规则。`;
+            }
+
+            if (issueType) {
+                issueCount++;
+                html += `<div class="card mb-2 shadow-sm border-0" style="background: #fff;">
+                    <div class="card-body p-2" style="font-size:13px;">
+                        <div class="fw-bold mb-1">
+                            <span class="text-danger me-1">${issueCount}.</span>
+                            <span class="text-warning-dark">${issueType}</span>
+                            ${issueDesc}
+                        </div>
+                        <div class="text-muted" style="font-size: 11px;">关联测试点：${title}</div>
+                    </div>
+                </div>`;
+            }
+        });
+
+        if (issueCount === 0) {
+            alert('太棒了！当前所有测试点逻辑明确，无缺失原文，专家也全票通过。');
+            return;
+        }
+
+        document.querySelector('#confirmDrawer h5').innerHTML = `📋 待确认问题看板 <span class="badge bg-danger rounded-pill">${issueCount}</span>`;
+        document.getElementById('issueBoardList').innerHTML = html;
+        document.getElementById('drawerOverlay').style.display = 'block';
+        document.getElementById('confirmDrawer').classList.add('open');
+    }
+
+    function closeDrawer() {
+        document.getElementById('drawerOverlay').style.display = 'none';
+        document.getElementById('confirmDrawer').classList.remove('open');
+    }
+
+    async function submitBatchConfirm() {
+        const idea = document.getElementById('batchConfirmIdea').value.trim();
+        if(!idea) return alert('请输入确认意见');
+
+        // 收集所有存在问题的测试点 ID，传给后端作为需要重写的范围
+        const targetIds = [];
+        document.querySelectorAll('.tp-card-item').forEach(card => {
+            const isAttention = card.classList.contains('need-attention');
+            const expertOp = card.getAttribute('data-expert');
+            const evidence = card.getAttribute('data-evidence') || '';
+            if ((expertOp && expertOp !== '建议通过') || !evidence || isAttention) {
+                targetIds.push(Number(card.querySelector('.tp-check').value));
+            }
+        });
+
+        const loader = document.createElement('div');
+        loader.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(255,255,255,0.85);z-index:9999;display:flex;flex-direction:column;justify-content:center;align-items:center;';
+        loader.innerHTML = '<div class="spinner-border text-primary" style="width:3rem;height:3rem;"></div><h5 class="mt-3 text-primary">AI 正在根据批示全局重写...</h5>';
+        document.body.appendChild(loader);
+
+        const res = await fetch('/test-points/batch-confirm', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ids: targetIds, idea: idea})
+        });
+        const data = await res.json();
+        if(data.ok) { location.reload(); }
+        else { document.body.removeChild(loader); alert(data.msg); }
+    }
+
+    // ================= 全局任务中心（后台跑） =================
+    function startGlobalTask(taskId, taskName) {
+        document.getElementById('taskCenter').style.display = 'flex';
+        if(globalTaskSse) globalTaskSse.close();
+
+        globalTaskSse = new EventSource('/cases/generate/stream/' + taskId);
+        globalTaskSse.onmessage = (ev) => {
+            const obj = JSON.parse(ev.data);
+            if (obj.kind === 'end') {
+                globalTaskSse.close();
+                document.getElementById('taskCenter').style.display = 'none';
+                alert(taskName + ' 已完成，页面即将刷新...');
+                location.reload();
+            }
+        };
+    }
+
+    function showTaskToast() { alert('任务正在后台全速执行中，请稍候...'); }
+
+    function openExpertModal() {
+        document.getElementById('reviewProgress').style.display = 'none';
+        document.getElementById('btnStartReview').style.display = 'block';
+        new bootstrap.Modal(document.getElementById('expertModal')).show();
+    }
+
+    function switchReviewScope(scope) {
+        reviewScope = scope;
+        document.getElementById('btnScopeSelected').className = scope === 'selected' ? 'btn btn-outline-primary btn-sm active' : 'btn btn-outline-secondary btn-sm';
+        document.getElementById('btnScopeAll').className = scope === 'all' ? 'btn btn-outline-primary btn-sm active' : 'btn btn-outline-secondary btn-sm';
+    }
+
+    async function startExpertReview() {
+        const expertId = document.getElementById('reviewExpertId').value;
+        if (!expertId) return alert('请先创建专家');
+
+        let targetIds = reviewScope === 'selected'
+            ? Array.from(document.querySelectorAll('.tp-check:checked')).map(cb => Number(cb.value))
+            : Array.from(document.querySelectorAll('.tp-check')).map(cb => Number(cb.value));
+
+        if (targetIds.length === 0) return alert('没有选中测试点');
+
+        document.getElementById('btnStartReview').style.display = 'none';
+        document.getElementById('reviewProgress').style.display = 'block';
+
+        const res = await fetch('/test-points/expert-review', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ids: targetIds, expert_id: Number(expertId)})
+        });
+        const data = await res.json();
+        if(!data.ok) { alert(data.msg); return; }
+
+        bootstrap.Modal.getInstance(document.getElementById('expertModal')).hide();
+        startGlobalTask(data.task_id, '专家评审');
+    }
+
+    // ================= 其余常规交互 =================
+    function filterScene(scene, el) { document.querySelectorAll('.tp-sidebar-item').forEach(i => i.classList.remove('active')); el.classList.add('active'); applyFilters(scene); }
+
+    function applyFilters(selectedScene = '') {
+        const keyword = document.getElementById('searchInput').value.toLowerCase();
+        const expertOp = document.getElementById('expertFilter').value;
+        document.querySelectorAll('.scene-group').forEach(group => {
+            const groupScene = group.getAttribute('data-scene');
+            const matchSceneGroup = !selectedScene || groupScene === selectedScene;
+            let hasVisibleCard = false;
+            group.querySelectorAll('.tp-card-item').forEach(card => {
+                const matchExp = !expertOp || card.getAttribute('data-expert') === expertOp;
+                const matchKeyword = card.querySelector('.tp-title-text').innerText.toLowerCase().includes(keyword);
+                if (matchSceneGroup && matchExp && matchKeyword) { card.style.display = ''; hasVisibleCard = true; } else { card.style.display = 'none'; }
+            });
+            group.style.display = hasVisibleCard ? 'block' : 'none';
+        });
+    }
+
+    async function updateStatus(id, status) {
+        await fetch(`/test-points/${id}/status`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({status: status}) });
+        location.reload();
+    }
+
+    async function deletePoint(id) {
+        if (!confirm('确认删除该测试点？')) return;
+        await fetch(`/test-points/${id}/delete`, { method: 'POST' });
+        location.reload();
+    }
+
+    async function batchDelete() {
+        if (!confirm('确认清空全部测试点？')) return;
+        await fetch('/test-points/batch-delete', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids: Array.from(document.querySelectorAll('.tp-check')).map(cb => Number(cb.value))}) });
+        location.reload();
+    }
+
+    async function genCases() {
+        const checked = Array.from(document.querySelectorAll('.tp-check:checked')).map(cb => Number(cb.value));
+        if (checked.length === 0) return alert('请先勾选测试点');
+        const res = await fetch('/test-points/generate-cases', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids: checked}) });
+        const data = await res.json();
+        if(data.ok) startGlobalTask(data.task_id, '用例生成');
+    }
+
+    async function batchRegenerate() {
+        const checked = Array.from(document.querySelectorAll('.tp-check:checked')).map(cb => Number(cb.value));
+        const idea = document.getElementById('batchIdeaInput').value.trim();
+        if (checked.length === 0 || !idea) return alert('请勾选测试点并输入意见');
+        const loader = document.createElement('div');
+        loader.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(255,255,255,0.85);z-index:9999;display:flex;justify-content:center;align-items:center;';
+        loader.innerHTML = '<div class="spinner-border text-primary" style="width:3rem;height:3rem;"></div>';
+        document.body.appendChild(loader);
+        const res = await fetch('/test-points/batch-regenerate', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ids: checked, idea: idea}) });
+        if (res.ok) { location.reload(); } else { document.body.removeChild(loader); alert('重写失败'); }
+    }
+
+    function openEditModal(btn) {
+        document.getElementById('editId').value = btn.getAttribute('data-id');
+        document.getElementById('editContent').value = btn.getAttribute('data-content');
+        document.getElementById('editIntent').value = btn.getAttribute('data-intent');
+        document.getElementById('editScene').value = btn.getAttribute('data-scene');
+        document.getElementById('editCategory').value = btn.getAttribute('data-category');
+        document.getElementById('editPriority').value = btn.getAttribute('data-priority');
+        document.getElementById('editMethod').value = btn.getAttribute('data-method') || '';
+        document.getElementById('editEvidence').value = btn.getAttribute('data-evidence');
+        new bootstrap.Modal(document.getElementById('editModal')).show();
+    }
+
+    async function saveEditPoint() {
+        const id = document.getElementById('editId').value;
+        const payload = {
+            content: document.getElementById('editContent').value,
+            intent: document.getElementById('editIntent').value,
+            scene: document.getElementById('editScene').value,
+            category: document.getElementById('editCategory').value,
+            priority: document.getElementById('editPriority').value,
+            method: document.getElementById('editMethod').value,
+            evidence_ids: document.getElementById('editEvidence').value,
+        };
+        await fetch(`/test-points/${id}/update`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+        location.reload();
+    }
+</script>
+{% endblock %}

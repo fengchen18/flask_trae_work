@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}专家团队{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold">专家团队</h4>
+        <p class="text-muted mb-0">每个专家都有自己的灵魂、模型和频道——可以在这里创建，并在测试点评审时呼叫。</p>
+    </div>
+    <a href="{{ url_for('expert_new') }}" class="btn btn-primary">+ 新建专家</a>
+</div>
+
+<div class="row g-4">
+    {% for e in experts %}
+    <div class="col-md-6 col-lg-4">
+        <div class="card shadow-sm h-100 border-0" style="border-radius: 12px;">
+            <div class="card-body p-4">
+                <div class="d-flex align-items-center gap-3 mb-3">
+                    <div class="rounded-circle bg-light d-flex justify-content-center align-items-center shadow-sm" style="width: 56px; height: 56px; font-size: 28px;">
+                        {{ e.avatar or '🤖' }}
+                    </div>
+                    <div>
+                        <h5 class="card-title mb-1 fw-bold">{{ e.name }} <span class="text-success" style="font-size: 12px;">●</span></h5>
+                        <div class="text-muted" style="font-size: 13px;">{{ e.description or '未填写描述' }}</div>
+                    </div>
+                </div>
+                <div class="p-2 bg-light rounded mb-3" style="font-size: 12px;">
+                    <strong>模型：</strong>{{ e.model_name }} <br>
+                    <strong>语言：</strong>{{ e.language or '中文' }}
+                </div>
+            </div>
+            <div class="card-footer bg-white border-top-0 d-flex justify-content-end gap-2 pb-3">
+                <a href="{{ url_for('expert_edit', expert_id=e.id) }}" class="btn btn-sm btn-outline-primary">编辑</a>
+                <form method="post" action="{{ url_for('expert_delete', expert_id=e.id) }}" onsubmit="return confirm('确认删除？')">
+                    <button class="btn btn-sm btn-outline-danger">删除</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="col-12 text-center text-muted py-5">
+        还没有专家，点右上角新建一个吧。
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

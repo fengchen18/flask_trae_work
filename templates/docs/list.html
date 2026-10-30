@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}需求文档{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h3>需求文档存档</h3>
+</div>
+
+<div class="table-card">
+    <table class="table table-hover align-middle">
+        <thead>
+        <tr>
+            <th style="width:60px">ID</th>
+            <th>文档名称</th>
+            <th style="width:100px">版本</th>
+            <th style="width:100px">用例数</th>
+            <th style="width:160px">上传时间</th>
+            <th style="width:160px">操作</th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for d in docs %}
+            <tr>
+                <td>{{ d.id }}</td>
+                <td>{{ d.doc_name }}</td>
+                <td>{{ d.doc_version }}</td>
+                <td><span class="badge bg-primary">{{ d.case_cnt }}</span></td>
+                <td>{{ d.uploaded_at.strftime('%Y-%m-%d %H:%M') if d.uploaded_at else '' }}</td>
+                <td>
+                    <a href="{{ url_for('case_list', doc_name=d.doc_name, doc_version=d.doc_version) }}"
+                       class="btn btn-sm btn-outline-primary">查看用例</a>
+                    <form method="post" action="{{ url_for('doc_delete', doc_id=d.id) }}"
+                          onsubmit="return confirm('确定删除该需求文档存档？')" style="display:inline">
+                        <button class="btn btn-sm btn-outline-danger">删除</button>
+                    </form>
+                </td>
+            </tr>
+        {% else %}
+            <tr><td colspan="6" class="text-center text-muted py-4">暂无需求文档。请到"用例管理"页使用 AI 生成。</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,17 @@
+# PyCharm 本地配置
+.idea/
+*.iml
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+
+# 虚拟环境
+venv/
+.venv/
+
+# 临时生成的文件
+*.log
+*.md
+# 如果你有临时生成的测试用例文件，也可以在这里排除
+# testcase_from_points_*.md

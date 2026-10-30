@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}{{ '编辑' if case else '新增' }}用例{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h3>{{ '编辑' if case else '新增' }}用例</h3>
+    <a href="{{ url_for('case_list') }}" class="btn btn-outline-secondary">返回</a>
+</div>
+
+<form method="post" class="form-card">
+    <div class="row g-3">
+        <div class="col-md-8">
+            <label class="form-label">标题 *</label>
+            <input name="title" class="form-control" required value="{{ case.title if case else '' }}">
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">优先级</label>
+            <select name="priority" class="form-select">
+                {% for p in ['P0','P1','P2','P3'] %}
+                <option value="{{ p }}" {% if case and case.priority==p %}selected{% endif %}>{{ p }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">用例类型</label>
+            <select name="case_type" class="form-select">
+                {% for t in ['功能测试','边界测试','异常测试','UI测试','兼容性测试'] %}
+                <option value="{{ t }}" {% if case and case.case_type==t %}selected{% endif %}>{{ t }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="col-md-4">
+            <label class="form-label">负责人</label>
+            <input name="owner" class="form-control" value="{{ case.owner if case else '待分配' }}">
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">标签</label>
+            <input name="tags" class="form-control" value="{{ case.tags if case else '' }}">
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">所属项目</label>
+            <input name="project" class="form-control" value="{{ case.project if case else '' }}">
+        </div>
+
+        <div class="col-md-6">
+            <label class="form-label">所属用例集</label>
+            <input name="case_set" class="form-control" value="{{ case.case_set if case else '' }}">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">文档名</label>
+            <input name="doc_name" class="form-control" value="{{ case.doc_name if case else '' }}">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">文档版本</label>
+            <input name="doc_version" class="form-control" value="{{ case.doc_version if case else '' }}">
+        </div>
+
+        <div class="col-md-6">
+            <label class="form-label">前置条件</label>
+            <textarea name="precondition" rows="3" class="form-control">{{ case.precondition if case else '' }}</textarea>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">测试步骤</label>
+            <textarea name="steps" rows="3" class="form-control">{{ case.steps if case else '' }}</textarea>
+        </div>
+
+        <div class="col-12">
+            <label class="form-label">预期结果</label>
+            <textarea name="expected" rows="3" class="form-control">{{ case.expected if case else '' }}</textarea>
+        </div>
+
+        <div class="col-md-4">
+            <label class="form-label">证据来源</label>
+            <input name="evidence_source" class="form-control" value="{{ case.evidence_source if case else '' }}">
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">证据等级</label>
+            <select name="evidence_level" class="form-select">
+                {% for e in ['', 'E1','E2','E3','E4','E5'] %}
+                <option value="{{ e }}" {% if case and case.evidence_level==e %}selected{% endif %}>{{ e or '未填' }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label">证据块 ID</label>
+            <div class="input-group">
+                <input name="evi_block_ids" id="eviBlockIdInput" class="form-control" value="{{ case.evi_block_ids if case else '' }}" readonly>
+                <button class="btn btn-outline-secondary" type="button" onclick="toggleEvidencePanel()">查看证据实体</button>
+            </div>
+        </div>
+
+        <div class="col-12">
+            <button class="btn btn-primary" type="submit">保存</button>
+            <a href="{{ url_for('case_list') }}" class="btn btn-outline-secondary">取消</a>
+        </div>
+    </div>
+</form>
+
+<!-- 证据实体展示面板 -->
+<div id="evidencePanel" class="card mt-3" style="display:none;">
+    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+        <span><strong>绑定的事实证据实体 (Evidence)</strong></span>
+        <button type="button" class="btn-close" onclick="toggleEvidencePanel()"></button>
+    </div>
+    <div class="card-body" id="evidenceList">
+        <!-- JS 渲染 -->
+    </div>
+</div>
+
+
+
+<script>
+let isEvidenceLoaded = false;
+
+async function toggleEvidencePanel() {
+    const panel = document.getElementById('evidencePanel');
+    if (panel.style.display === 'block') {
+        panel.style.display = 'none';
+        return;
+    }
+    panel.style.display = 'block';
+
+    const caseId = '{{ case.id if case else "" }}';
+    if (!caseId) {
+        document.getElementById('evidenceList').innerHTML = '<div class="text-muted">保存后才能查看证据实体</div>';
+        return;
+    }
+
+    if (isEvidenceLoaded) return; // 只请求一次
+
+    const listEl = document.getElementById('evidenceList');
+    listEl.innerHTML = '<div class="text-muted">加载中...</div>';
+
+    try {
+        const res = await fetch(`/api/cases/${caseId}/evidences`);
+        const data = await res.json();
+
+        if (!data.ok) {
+            listEl.innerHTML = '<div class="text-danger">加载失败</div>';
+            return;
+        }
+
+        if (data.data.length === 0) {
+            listEl.innerHTML = '<div class="text-muted">当前用例未绑定任何证据实体</div>';
+            isEvidenceLoaded = true;
+            return;
+        }
+
+        let html = '<div class="row">';
+        for (let evi of data.data) {
+            // 截取过长原文 (比如 214 这种巨无霸块只展示前 500 字)
+            let displayQuote = evi.quote || '';
+            if (displayQuote.length > 500) {
+                displayQuote = displayQuote.substring(0, 500) + '...[内容过长已折叠]';
+            }
+            // 处理换行
+            displayQuote = displayQuote.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
+
+            html += `
+            <div class="col-md-6 mb-3">
+                <div class="p-3 border rounded bg-white shadow-sm h-100">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="badge bg-primary">Block ID: ${evi.source_block_id}</span>
+                        <span class="badge bg-info text-dark">等级: ${evi.evidence_level || '未定'}</span>
+                    </div>
+                    <div style="font-size:13px; color:#4b5563; max-height:200px; overflow-y:auto; line-height:1.6;">
+                        ${displayQuote}
+                    </div>
+                    <div class="mt-2 text-end" style="font-size:11px; color:#9ca3af;">
+                        Hash: ${evi.content_hash ? evi.content_hash.substring(0, 16) + '...' : '无'}
+                    </div>
+                </div>
+            </div>`;
+        }
+        html += '</div>';
+        listEl.innerHTML = html;
+        isEvidenceLoaded = true;
+
+    } catch (e) {
+        listEl.innerHTML = `<div class="text-danger">请求异常：${e}</div>`;
+    }
+}
+</script>
+{% endblock %}

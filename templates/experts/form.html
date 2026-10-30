@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+{% block title %}{{ '编辑' if expert else '创建' }}专家{% endblock %}
+
+{% block content %}
+<style>
+    .wizard-header { display: flex; justify-content: center; gap: 40px; margin-bottom: 40px; border-bottom: 1px solid #e5e7eb; padding-bottom: 20px; }
+    .wizard-step { display: flex; align-items: center; gap: 8px; color: #9ca3af; font-weight: 500; }
+    .wizard-step .num { width: 24px; height: 24px; border-radius: 50%; border: 2px solid #d1d5db; display: flex; justify-content: center; align-items: center; font-size: 12px; }
+    .wizard-step.active { color: #2563eb; }
+    .wizard-step.active .num { border-color: #2563eb; background: #2563eb; color: #fff; }
+    .wizard-step.done { color: #10b981; }
+    .wizard-step.done .num { border-color: #10b981; background: #10b981; color: #fff; }
+
+    .step-content { display: none; max-width: 700px; margin: 0 auto; }
+    .step-content.active { display: block; animation: fadeIn 0.3s; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+    .avatar-grid { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin: 20px 0; }
+    .avatar-option { width: 48px; height: 48px; border-radius: 50%; border: 2px solid transparent; display: flex; justify-content: center; align-items: center; font-size: 24px; cursor: pointer; background: #f3f4f6; transition: 0.2s; }
+    .avatar-option:hover { background: #e5e7eb; }
+    .avatar-option.active { border-color: #2563eb; background: #eff6ff; transform: scale(1.1); }
+
+    .model-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 15px; margin-bottom: 10px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+    .model-card:hover { border-color: #2563eb; }
+    .model-card.active { border-color: #2563eb; background: #eff6ff; }
+
+    .soul-template { padding: 6px 12px; border: 1px solid #d1d5db; border-radius: 20px; background: #fff; font-size: 13px; cursor: pointer; margin-right: 8px; margin-bottom: 8px; display: inline-block; }
+    .soul-template:hover { background: #f3f4f6; }
+</style>
+
+<form method="post" id="expertForm">
+    <!-- 顶部步骤条 -->
+    <div class="wizard-header">
+        <div class="wizard-step active" id="step-title-1"><span class="num">1</span> 身份</div>
+        <div class="wizard-step" id="step-title-2"><span class="num">2</span> 灵魂</div>
+        <div class="wizard-step" id="step-title-3"><span class="num">3</span> 心智</div>
+        <div class="wizard-step" id="step-title-4"><span class="num">4</span> 资料库</div>
+        <div class="wizard-step" id="step-title-5"><span class="num">5</span> 审阅</div>
+    </div>
+
+    <!-- 第一步：身份 -->
+    <div class="step-content active" id="step-1">
+        <div class="text-center mb-4"><h4>这个专家是谁？</h4><p class="text-muted">先取个名字、选个形象——其余以后都能改。</p></div>
+        <div class="mb-3"><label class="form-label">名称</label><input type="text" name="name" class="form-control" value="{{ expert.name if expert else '' }}" required></div>
+        <div class="mb-3"><label class="form-label">描述</label><input type="text" name="description" class="form-control" value="{{ expert.description if expert else '' }}" placeholder="这个专家是做什么的？"></div>
+
+        <label class="form-label mt-3">形象</label>
+        <input type="hidden" name="avatar" id="avatarInput" value="{{ expert.avatar if expert else '🤖' }}">
+        <div class="avatar-grid" id="avatarGrid">
+            <!-- 用几个预设的 Emoji 作为头像 -->
+            <div class="avatar-option active" onclick="selectAvatar('🤖', this)">🤖</div>
+            <div class="avatar-option" onclick="selectAvatar('🦊', this)">🦊</div>
+            <div class="avatar-option" onclick="selectAvatar('🐱', this)">🐱</div>
+            <div class="avatar-option" onclick="selectAvatar('🐼', this)">🐼</div>
+            <div class="avatar-option" onclick="selectAvatar('🦉', this)">🦉</div>
+            <div class="avatar-option" onclick="selectAvatar('👨‍💻', this)">👨‍💻</div>
+            <div class="avatar-option" onclick="selectAvatar('🕵️', this)">🕵️</div>
+            <div class="avatar-option" onclick="selectAvatar('🧙‍♂️', this)">🧙‍♂️</div>
+        </div>
+
+        <div class="mb-3"><label class="form-label">回复语言</label>
+            <select name="language" class="form-select">
+                <option value="中文">中文</option>
+                <option value="英文">英文</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- 第二步：灵魂 -->
+    <div class="step-content" id="step-2">
+        <div class="mb-4"><h4>赋予它灵魂</h4><p class="text-muted">它是谁。可以从模板开始、克隆一个人设，或亲手撰写。</p></div>
+        <div class="mb-2">
+            <span class="soul-template" onclick="applyTemplate('严苛测试专家')">严苛测试专家</span>
+            <span class="soul-template" onclick="applyTemplate('业务风控专家')">业务风控专家</span>
+            <span class="soul-template" onclick="applyTemplate('用户体验专家')">用户体验专家</span>
+        </div>
+        <textarea name="soul_md" id="soulMd" class="form-control font-monospace" rows="12" style="background: #fafafa;">{{ expert.soul_md if expert else '# Soul\n\n你是一个严苛的高级测试工程师，擅长发现需求遗漏和逻辑漏洞。\n\n## Voice\n- 语言犀利，直击痛点\n- 不留情面地指出模糊的业务规则\n' }}</textarea>
+    </div>
+
+    <!-- 第三步：心智 -->
+    <div class="step-content" id="step-3">
+        <div class="mb-4"><h4>塑造它的心智</h4><p class="text-muted">它思考用的模型。</p></div>
+        <label class="form-label">主模型（从 Trae 动态获取）</label>
+        <input type="hidden" name="model_name" id="modelInput" value="{{ expert.model_name if expert else '' }}">
+        <div id="modelList">
+            {% for m in models %}
+            <div class="model-card {% if (expert and expert.model_name == m) or (not expert and loop.first) %}active{% endif %}" onclick="selectModel('{{ m }}', this)">
+                <div>
+                    <div class="fw-bold">{{ m }}</div>
+                    <div class="text-muted" style="font-size: 12px;">Trae CLI 支持的底层模型</div>
+                </div>
+                <div class="text-primary check-icon" style="display: {% if (expert and expert.model_name == m) or (not expert and loop.first) %}block{% else %}none{% endif %};">✓</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- 第四步：资料库 -->
+    <div class="step-content" id="step-4">
+        <div class="mb-4"><h4>交给它一些知识</h4><p class="text-muted">当前专家默认读取当前工作区的资源。</p></div>
+        <div class="alert alert-light border d-flex align-items-center gap-2">
+            <span>📁</span> <strong>Partner 私有工作区</strong>
+        </div>
+        <p class="text-muted mt-4" style="font-size: 13px;">选中的内容会复制进专家的私有工作区（暂未开放独立隔离，默认共享全量知识库）。</p>
+    </div>
+
+    <!-- 第五步：审阅 -->
+    <div class="step-content" id="step-5">
+        <div class="mb-4"><h4>准备好见到 <span id="reviewName" class="text-primary"></span> 了吗？</h4><p class="text-muted">就快好了——创建前最后确认一下。</p></div>
+        <table class="table table-bordered bg-white">
+            <tbody>
+                <tr><th style="width: 150px; background: #fafafa;">名称</th><td id="rvName"></td></tr>
+                <tr><th style="background: #fafafa;">描述</th><td id="rvDesc"></td></tr>
+                <tr><th style="background: #fafafa;">形象</th><td id="rvAvatar" style="font-size: 24px;"></td></tr>
+                <tr><th style="background: #fafafa;">模型</th><td id="rvModel"></td></tr>
+                <tr><th style="background: #fafafa;">语言</th><td id="rvLang"></td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 底部操作栏 -->
+    <div class="d-flex justify-content-between mt-5 pt-3 border-top">
+        <button type="button" class="btn btn-light" id="btnPrev" onclick="prevStep()" style="display:none;">← 上一步</button>
+        <button type="button" class="btn btn-primary px-4" id="btnNext" onclick="nextStep()">继续 →</button>
+        <button type="submit" class="btn btn-primary px-4" id="btnSubmit" style="display:none;">✨ 创建专家</button>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentStep = 1;
+
+    function showStep(step) {
+        document.querySelectorAll('.step-content').forEach(el => el.classList.remove('active'));
+        document.getElementById('step-' + step).classList.add('active');
+
+        // 更新头部状态
+        for (let i = 1; i <= 5; i++) {
+            const titleEl = document.getElementById('step-title-' + i);
+            titleEl.classList.remove('active', 'done');
+            if (i < step) titleEl.classList.add('done');
+            if (i === step) titleEl.classList.add('active');
+        }
+
+        document.getElementById('btnPrev').style.display = step === 1 ? 'none' : 'block';
+        document.getElementById('btnNext').style.display = step === 5 ? 'none' : 'block';
+        document.getElementById('btnSubmit').style.display = step === 5 ? 'block' : 'none';
+
+        if (step === 5) updateReview();
+    }
+
+    function nextStep() {
+        if (currentStep === 1 && !document.querySelector('input[name="name"]').value.trim()) {
+            alert('请填写专家名称'); return;
+        }
+        currentStep++; showStep(currentStep);
+    }
+
+    function prevStep() { currentStep--; showStep(currentStep); }
+
+    function selectAvatar(emoji, el) {
+        document.querySelectorAll('.avatar-option').forEach(e => e.classList.remove('active'));
+        el.classList.add('active');
+        document.getElementById('avatarInput').value = emoji;
+    }
+
+    function selectModel(modelName, el) {
+        document.querySelectorAll('.model-card').forEach(e => {
+            e.classList.remove('active');
+            e.querySelector('.check-icon').style.display = 'none';
+        });
+        el.classList.add('active');
+        el.querySelector('.check-icon').style.display = 'block';
+        document.getElementById('modelInput').value = modelName;
+    }
+
+    function applyTemplate(type) {
+        const ta = document.getElementById('soulMd');
+        if (type === '严苛测试专家') {
+            ta.value = "# Soul\n\n你是一个严苛的高级测试工程师，擅长发现需求遗漏和逻辑漏洞。\n\n## Voice\n- 语言犀利，直击痛点\n- 不留情面地指出模糊的业务规则\n\n## How I help\n- 审查测试点是否覆盖异常边界\n- 指出证据链断裂的地方";
+        } else if (type === '业务风控专家') {
+            ta.value = "# Soul\n\n你是一个业务风控专家，对资金、积分、频控极度敏感。\n\n## Voice\n- 稳健，关注极端场景\n\n## How I help\n- 专门挑刺：并发、幂等、防刷、发券失败。";
+        } else {
+            ta.value = "# Soul\n\n你是一个注重用户体验的测试专家，关注UI一致性和交互流畅度。\n\n## How I help\n- 关注空状态、弱网、加载时长、提示文案。";
+        }
+    }
+
+    function updateReview() {
+        const name = document.querySelector('input[name="name"]').value || '未命名';
+        document.getElementById('rvName').innerText = name;
+        document.getElementById('reviewName').innerText = name;
+        document.getElementById('rvDesc').innerText = document.querySelector('input[name="description"]').value || '—';
+        document.getElementById('rvAvatar').innerText = document.getElementById('avatarInput').value;
+        document.getElementById('rvModel').innerText = document.getElementById('modelInput').value;
+        document.getElementById('rvLang').innerText = document.querySelector('select[name="language"]').value;
+    }
+
+    // 初始化
+    showStep(1);
+</script>
+{% endblock %}

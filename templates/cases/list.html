@@ -1,0 +1,509 @@
+{% extends "base.html" %}
+{% block title %}用例管理{% endblock %}
+
+{% block content %}
+<div class="case-layout">
+    <!-- 中间：用例集树 -->
+    <aside class="case-set-panel">
+        <div class="case-set-header">
+            <span>用例集</span>
+            <button type="button" onclick="createCaseSet()" class="btn btn-sm btn-outline-primary" title="新建用例集">+</button>
+        </div>
+        <div class="case-set-search">
+            <input type="text" id="csSearchInput" placeholder="搜索用例集"
+                   oninput="filterTree(this.value)">
+        </div>
+        <div id="caseSetTree" class="case-set-tree">
+            <div class="text-muted p-2" style="font-size:12px;">加载中...</div>
+        </div>
+    </aside>
+
+    <!-- 右侧：用例列表 -->
+    <div class="case-list-panel">
+        <div class="page-header">
+            <h3>
+                <span id="currentSetName">全部用例</span>
+            </h3>
+            <div class="actions">
+                <a href="{{ url_for('case_generate') }}" class="btn btn-success">AI 生成</a>
+                <a href="{{ url_for('case_new') }}" class="btn btn-primary">＋ 新增</a>
+                <button type="button" onclick="exportCases()" class="btn btn-outline-success">导出</button>
+                <button type="button" onclick="batchDelete()" class="btn btn-outline-danger">批量删除</button>
+                <button type="button" id="btnPushDevOps" class="btn btn-outline-warning">导出到 DevOps</button>
+            </div>
+        </div>
+
+        <form class="search-bar" method="get" action="{{ url_for('case_list') }}">
+            <input type="hidden" name="per_page" value="{{ per_page }}">
+            <input type="hidden" name="case_set_id" id="caseSetIdInput" value="{{ cs_id }}">
+            <input type="text" name="q" value="{{ keyword }}" placeholder="搜索标题 / 标签 / 项目" class="form-control">
+            <select name="source" class="form-select">
+                <option value="">全部来源</option>
+                <option value="manual" {% if source=='manual' %}selected{% endif %}>手工</option>
+                <option value="import" {% if source=='import' %}selected{% endif %}>导入</option>
+                <option value="ai" {% if source=='ai' %}selected{% endif %}>AI 生成</option>
+            </select>
+            <button class="btn btn-primary" type="submit">搜索</button>
+            <a href="{{ url_for('case_list') }}" class="btn btn-outline-secondary">重置</a>
+        </form>
+
+        <div class="table-card">
+            <table class="table table-hover align-middle">
+                <thead>
+                <tr>
+                    <th style="width:40px"><input type="checkbox" id="checkAll"></th>
+                    <th style="width:60px">ID</th>
+                    <th>标题</th>
+                    <th style="width:80px">优先级</th>
+                    <th style="width:100px">用例类型</th>
+                    <th style="width:80px">证据等级</th>
+                    <th style="width:90px">来源</th>
+                    <th style="width:150px">创建时间</th>
+                    <th style="width:140px">操作</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for c in cases %}
+                    <tr>
+                        <td><input type="checkbox" class="row-check" value="{{ c.id }}"></td>
+                        <td>{{ c.id }}</td>
+                        <td title="{{ c.title }}">{{ c.title[:60] }}{% if c.title|length > 60 %}...{% endif %}</td>
+                        <td>{{ c.priority }}</td>
+                        <td>{{ c.case_type }}</td>
+                        <td>{{ c.evidence_level }}</td>
+                        <td>
+                            {% if c.source == 'ai' %}<span class="badge bg-success">AI</span>
+                            {% elif c.source == 'import' %}<span class="badge bg-info">导入</span>
+                            {% else %}<span class="badge bg-secondary">手工</span>{% endif %}
+                        </td>
+                        <td>{{ c.created_at.strftime('%Y-%m-%d %H:%M') if c.created_at else '' }}</td>
+                        <td>
+                            <a href="{{ url_for('case_edit', case_id=c.id) }}" class="btn btn-sm btn-outline-primary">编辑</a>
+                            <form method="post" action="{{ url_for('case_delete', case_id=c.id) }}"
+                                  onsubmit="return confirm('确定删除？');" style="display:inline">
+                                <button class="btn btn-sm btn-outline-danger">删除</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr><td colspan="9" class="text-center text-muted py-4">暂无数据</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+                <!-- 动态分页栏 -->
+        <div class="pagination-bar d-flex justify-content-between align-items-center mt-3">
+            {% if pagination.pages > 1 %}
+            <ul class="pagination mb-0">
+                <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('case_list', page=pagination.prev_num, q=keyword, source=source, case_set_id=cs_id, per_page=per_page) }}">上一页</a>
+                </li>
+                {% for p in pagination.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if p %}
+                        <li class="page-item {% if p == pagination.page %}active{% endif %}">
+                            <a class="page-link" href="{{ url_for('case_list', page=p, q=keyword, source=source, case_set_id=cs_id, per_page=per_page) }}">{{ p }}</a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">…</span></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('case_list', page=pagination.next_num, q=keyword, source=source, case_set_id=cs_id, per_page=per_page) }}">下一页</a>
+                </li>
+            </ul>
+            {% else %}
+            <div></div>
+            {% endif %}
+
+            <!-- 右侧：下拉框和统计信息 -->
+            <div class="d-flex align-items-center gap-2">
+                <select id="perPageSelect" class="form-select form-select-sm" style="width: 105px;">
+                    <option value="10" {% if per_page == 10 %}selected{% endif %}>10 条/页</option>
+                    <option value="20" {% if per_page == 20 %}selected{% endif %}>20 条/页</option>
+                    <option value="25" {% if per_page == 25 %}selected{% endif %}>25 条/页</option>
+                    <option value="50" {% if per_page == 50 %}selected{% endif %}>50 条/页</option>
+                    <option value="100" {% if per_page == 100 %}selected{% endif %}>100 条/页</option>
+                </select>
+                <span class="page-info text-muted" style="font-size: 14px; white-space: nowrap;">
+                    共 {{ pagination.total }} 条
+                </span>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- 目标用例集选择弹窗 -->
+<div class="modal fade" id="testSetModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-scrollable" style="max-width: 520px;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">选择目标用例集</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="text" id="tsSearch" class="form-control mb-2"
+               placeholder="搜索用例集..." oninput="filterTestSetTree(this.value)">
+        <div id="tsTree" class="ts-tree">
+          <div class="text-muted p-2">加载中...</div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <span id="tsSelected" class="me-auto text-muted" style="font-size:13px;">未选择</span>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-primary" onclick="confirmPushToDevOps()">确定推送</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+
+// 切换每页显示条数
+document.getElementById('perPageSelect').addEventListener('change', function() {
+    const url = new URL(window.location.href);
+    url.searchParams.set('per_page', this.value);
+    url.searchParams.set('page', 1); // 切换每页数量时，自动回到第一页
+    window.location.href = url.toString();
+});
+// ================== 用例集树 ==================
+async function loadCaseSetTree() {
+    const res = await fetch('/case-sets/tree');
+    const data = await res.json();
+    if (!data.ok) return;
+    const tree = document.getElementById('caseSetTree');
+    const currentId = '{{ cs_id }}';
+
+    // 统计所有用例总数（含子集）
+    let totalCount = 0;
+    function sumCount(nodes) {
+        for (const n of nodes) {
+            totalCount += n.count || 0;
+            if (n.children && n.children.length) sumCount(n.children);
+        }
+    }
+    sumCount(data.data);
+
+    // 渲染树节点
+    function renderNodes(nodes, level = 0) {
+        let html = '';
+        for (const n of nodes) {
+            const active = String(n.id) === currentId ? ' active' : '';
+            const hasChildren = n.children && n.children.length > 0;
+            const safeName = n.name.replace(/'/g, "\\'");
+            html += `<div class="case-set-node${active}"
+                          data-name="${n.name.toLowerCase()}"
+                          style="padding-left:${12 + level * 16}px">
+                ${hasChildren
+                    ? `<span class="cs-toggle" onclick="event.stopPropagation();toggleNode(this)">▼</span>`
+                    : `<span class="cs-toggle-placeholder"></span>`}
+                <span class="cs-name" onclick="selectCaseSet(${n.id})">${n.name}</span>
+                <span class="cs-count">${n.count || 0}</span>
+                <span class="cs-actions">
+                    <a href="javascript:;" onclick="event.stopPropagation();createCaseSet(${n.id})" title="新建子集">+</a>
+                    <a href="javascript:;" onclick="event.stopPropagation();renameCaseSet(${n.id}, '${safeName}')" title="重命名">✎</a>
+                    <a href="javascript:;" onclick="event.stopPropagation();deleteCaseSet(${n.id})" title="删除">×</a>
+                </span>
+            </div>`;
+            if (hasChildren) {
+                html += `<div class="cs-children">${renderNodes(n.children, level + 1)}</div>`;
+            }
+        }
+        return html;
+    }
+
+    const allActive = currentId === '' ? ' active' : '';
+    tree.innerHTML = `
+        <div class="case-set-node root${allActive}" onclick="selectCaseSet('')">
+            <span class="cs-toggle" onclick="event.stopPropagation();toggleRoot(this)">▼</span>
+            <span class="cs-name">全部</span>
+            <span class="cs-count">${totalCount}</span>
+        </div>
+        <div class="cs-children" id="csChildrenRoot">
+            ${renderNodes(data.data)}
+        </div>`;
+}
+
+// 折叠/展开某个节点
+function toggleNode(el) {
+    const node = el.closest('.case-set-node');
+    let children = node.nextElementSibling;
+    if (!children || !children.classList.contains('cs-children')) return;
+    if (children.style.display === 'none') {
+        children.style.display = '';
+        el.textContent = '▼';
+    } else {
+        children.style.display = 'none';
+        el.textContent = '▶';
+    }
+}
+
+// 折叠/展开"全部"下的所有节点
+function toggleRoot(el) {
+    const children = document.getElementById('csChildrenRoot');
+    if (!children) return;
+    if (children.style.display === 'none') {
+        children.style.display = '';
+        el.textContent = '▼';
+    } else {
+        children.style.display = 'none';
+        el.textContent = '▶';
+    }
+}
+
+// 搜索过滤
+function filterTree(keyword) {
+    keyword = (keyword || '').trim().toLowerCase();
+    const allNodes = document.querySelectorAll('.case-set-node[data-name]');
+
+    if (!keyword) {
+        // 清空搜索：全部显示
+        allNodes.forEach(n => n.style.display = '');
+        document.querySelectorAll('.cs-children').forEach(c => c.style.display = '');
+        document.querySelectorAll('.case-set-node .cs-toggle').forEach(t => t.textContent = '▼');
+        return;
+    }
+
+    // 有搜索：匹配的显示，不匹配的隐藏
+    allNodes.forEach(n => {
+        const name = n.getAttribute('data-name') || '';
+        n.style.display = name.includes(keyword) ? '' : 'none';
+    });
+    // 确保子容器展开
+    document.querySelectorAll('.cs-children').forEach(c => c.style.display = '');
+    document.querySelectorAll('.case-set-node .cs-toggle').forEach(t => t.textContent = '▼');
+}
+
+function selectCaseSet(id) {
+    const params = new URLSearchParams();
+    if (id) params.append('case_set_id', id);
+    window.location.href = '/cases?' + params.toString();
+}
+
+async function createCaseSet(parentId = null) {
+    const name = prompt(parentId ? '请输入子用例集名称：' : '请输入用例集名称：');
+    if (!name) return;
+    const res = await fetch('/case-sets/create', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name: name, parent_id: parentId}),
+    });
+    const data = await res.json();
+    if (data.ok) location.reload();
+    else alert(data.msg);
+}
+
+async function renameCaseSet(id, oldName) {
+    const name = prompt('新名称：', oldName);
+    if (!name || name === oldName) return;
+    const res = await fetch(`/case-sets/${id}/rename`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name: name}),
+    });
+    const data = await res.json();
+    if (data.ok) location.reload();
+    else alert(data.msg);
+}
+
+async function deleteCaseSet(id) {
+    if (!confirm('确认删除该用例集？其下的用例会变成"未分类"。')) return;
+    const res = await fetch(`/case-sets/${id}/delete`, { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) location.reload();
+    else alert(data.msg);
+}
+
+loadCaseSetTree();
+
+// ================== 复选框 ==================
+document.getElementById('checkAll').addEventListener('change', (e) => {
+    document.querySelectorAll('.row-check').forEach(cb => cb.checked = e.target.checked);
+});
+document.querySelectorAll('.row-check').forEach(cb => {
+    cb.addEventListener('change', () => {
+        const all = document.querySelectorAll('.row-check');
+        const checked = document.querySelectorAll('.row-check:checked');
+        document.getElementById('checkAll').checked = (all.length > 0 && all.length === checked.length);
+    });
+});
+function getSelectedIds() {
+    return Array.from(document.querySelectorAll('.row-check:checked')).map(cb => Number(cb.value));
+}
+
+// ================== 导出 ==================
+function exportCases() {
+    const ids = getSelectedIds();
+    const params = new URLSearchParams();
+    if (ids.length > 0) {
+        params.append('ids', ids.join(','));
+    } else {
+        params.append('q', '{{ keyword }}');
+        params.append('source', '{{ source }}');
+        params.append('case_set_id', '{{ cs_id }}');
+    }
+    window.location.href = '/cases/export?' + params.toString();
+}
+
+// ================== 批量删除 ==================
+async function batchDelete() {
+    const ids = getSelectedIds();
+    if (!ids.length) { alert('请先勾选要删除的用例'); return; }
+    if (!confirm(`确认删除选中的 ${ids.length} 条用例？`)) return;
+    const res = await fetch('/cases/batch-delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ids: ids}),
+    });
+    const data = await res.json();
+    if (data.ok) { alert(data.msg); location.reload(); }
+    else alert('删除失败：' + data.msg);
+}
+
+// ================== 推送 DevOps ==================
+// ============== 导出到 DevOps：弹窗选目录 ==============
+let selectedTsId = null;
+let selectedTsPath = '';
+let tsTreeLoaded = false;
+
+document.getElementById('btnPushDevOps')?.addEventListener('click', async () => {
+    const ids = getSelectedIds();
+    if (ids.length === 0) {
+        alert("请勾选至少一条用例！");
+        return;
+    }
+    // 打开弹窗
+    const modal = new bootstrap.Modal(document.getElementById('testSetModal'));
+    modal.show();
+
+    // 首次打开时加载树
+    if (!tsTreeLoaded) {
+        await loadTestSetTree();
+        tsTreeLoaded = true;
+    }
+});
+
+async function loadTestSetTree() {
+    const tree = document.getElementById('tsTree');
+    tree.innerHTML = '<div class="text-muted p-2">加载中...</div>';
+    try {
+        const res = await fetch('/devops/test-sets');
+        const data = await res.json();
+        if (!data.ok) {
+            tree.innerHTML = `<div class="text-danger p-2">加载失败：${data.msg}</div>`;
+            return;
+        }
+        tree.innerHTML = renderTsNodes(data.data, 0);
+    } catch (e) {
+        tree.innerHTML = `<div class="text-danger p-2">网络异常：${e}</div>`;
+    }
+}
+
+function renderTsNodes(nodes, level) {
+    let html = '';
+    for (const n of nodes) {
+        const hasChildren = n.children && n.children.length > 0;
+        const safePath = (n.full_path || '').replace(/"/g, '&quot;');
+        const safeName = (n.name || '').replace(/"/g, '&quot;');
+        html += `<div class="ts-node"
+                      data-id="${n.id}"
+                      data-path="${safePath}"
+                      data-name="${safeName.toLowerCase()}"
+                      style="padding-left:${level * 18 + 8}px">
+            <span class="ts-toggle" onclick="event.stopPropagation();toggleTsNode(this)">${hasChildren ? '▼' : ''}</span>
+            <span class="ts-name" onclick="selectTsNode(this)">${n.name}</span>
+        </div>`;
+        if (hasChildren) {
+            html += `<div class="ts-children">${renderTsNodes(n.children, level + 1)}</div>`;
+        }
+    }
+    return html;
+}
+
+function toggleTsNode(el) {
+    const node = el.closest('.ts-node');
+    let children = node.nextElementSibling;
+    if (!children || !children.classList.contains('ts-children')) return;
+    if (children.style.display === 'none') {
+        children.style.display = '';
+        el.textContent = '▼';
+    } else {
+        children.style.display = 'none';
+        el.textContent = '▶';
+    }
+}
+
+function selectTsNode(el) {
+    document.querySelectorAll('.ts-node.active').forEach(n => n.classList.remove('active'));
+    const node = el.closest('.ts-node');
+    node.classList.add('active');
+    selectedTsId = node.getAttribute('data-id');
+    selectedTsPath = node.getAttribute('data-path');
+    document.getElementById('tsSelected').textContent = '已选：' + selectedTsPath;
+}
+
+function filterTestSetTree(keyword) {
+    keyword = (keyword || '').trim().toLowerCase();
+    const allNodes = document.querySelectorAll('#tsTree .ts-node');
+    if (!keyword) {
+        allNodes.forEach(n => n.style.display = '');
+        document.querySelectorAll('#tsTree .ts-children').forEach(c => c.style.display = '');
+        return;
+    }
+    allNodes.forEach(n => {
+        const name = n.getAttribute('data-name') || '';
+        n.style.display = name.includes(keyword) ? '' : 'none';
+    });
+    // 展开所有父级
+    document.querySelectorAll('#tsTree .ts-children').forEach(c => c.style.display = '');
+    document.querySelectorAll('#tsTree .ts-toggle').forEach(t => {
+        if (t.textContent.trim()) t.textContent = '▼';
+    });
+}
+
+async function confirmPushToDevOps() {
+    if (!selectedTsId) {
+        alert('请先选择一个目标用例集');
+        return;
+    }
+    const ids = getSelectedIds();
+    if (ids.length === 0) {
+        alert('没有勾选用例');
+        return;
+    }
+    if (!confirm(`确认推送选中 ${ids.length} 条用例到：\n${selectedTsPath}？`)) return;
+
+    // 关闭弹窗
+    const modalEl = document.getElementById('testSetModal');
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    if (modal) modal.hide();
+
+    const btn = document.getElementById('btnPushDevOps');
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '⏳ 推送中...';
+
+    const fd = new FormData();
+    ids.forEach(id => fd.append('case_ids', id));
+    fd.append('test_set_id', selectedTsId);
+    fd.append('test_set_path', selectedTsPath);
+
+    try {
+        const res = await fetch('/cases/push-devops', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (data.ok) {
+            alert(data.msg);
+        } else {
+            alert('❌ ' + data.msg);
+            console.error(data.detail);
+        }
+    } catch (e) {
+        alert('请求失败：' + e);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }
+}
+</script>
+{% endblock %}
